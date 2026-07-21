@@ -1,0 +1,28 @@
+name: Syntax Check
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  shellcheck:
+    name: ShellCheck (bash scripts)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install shellcheck
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq shellcheck
+      - name: Run shellcheck on all .sh files
+        run: shellcheck --shell=bash --external-sources *.sh
+
+  psscriptanalyzer:
+    name: PSScriptAnalyzer (PowerShell scripts)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install PSScriptAnalyzer
+        run: Install-Module -Name PSScriptAnalyzer -Force -Scope CurrentUser
+      - name: Run PSScriptAnalyzer
+        run: Invoke-ScriptAnalyzer -Path *.ps1 -Recurse -Severity Error -EnableExit

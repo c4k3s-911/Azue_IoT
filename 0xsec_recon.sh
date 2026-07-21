@@ -2,12 +2,13 @@
 # =====================================================
 # 0xSec.za Main Reconnaissance Pipeline
 # Stealth network scanning with report generation
+# Refined: timestamps, SCRIPT_DIR, --host-timeout, --reason
 # =====================================================
 
 set -euo pipefail
 
 SCRIPT_NAME="0xsec_recon.sh"
-VERSION="1.0"
+VERSION="1.1"
 
 # Colors
 RED='\033[0;31m'
@@ -16,14 +17,15 @@ YELLOW='\033[0;33m'
 BLUE='\033[0;34m'
 NC='\033[0m'
 
-log() {
-    echo -e "${BLUE}[${SCRIPT_NAME}]${NC} $*"
-}
+# Resolve script directory for relative paths
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
-error() {
-    echo -e "${RED}[ERROR]${NC} $*" >&2
-    exit 1
-}
+# Trap Ctrl+C / interrupt
+trap 'echo -e "\n${RED}[${SCRIPT_NAME}] Interrupted${NC}"; exit 1' INT TERM
+
+log()    { echo -e "${BLUE}[${SCRIPT_NAME}]${NC} $*"; }
+error()  { echo -e "${RED}[ERROR]${NC} $*" >&2; exit 1; }
+warn()   { echo -e "${YELLOW}[WARN]${NC} $*"; }
 
 usage() {
     cat <<EOF
@@ -65,23 +67,24 @@ log "Starting reconnaissance: $TARGET (mode: $MODE)"
 # Define scan parameters
 case "$MODE" in
     quick)
-        NMAP_ARGS="--top-ports 100 -sV -sC -T4"
+        NMAP_ARGS="--top-ports 100 -sV -sC -T4 --reason"
         ;;
     stealth)
-        NMAP_ARGS="-sS -T2 -n -Pn -f --data-length 200"
+        NMAP_ARGS="-sS -T2 -n -Pn -f --data-length 200 --host-timeout 5m --reason"
         ;;
     full)
-        NMAP_ARGS="-sV -sC -sS -O -p- -T4"
+        NMAP_ARGS="-sV -sC -sS -O -p- -T4 --reason"
         ;;
     *)
-        NMAP_ARGS="-sV -sC -T4"
+        NMAP_ARGS="-sV -sC -T4 --reason"
         ;;
 esac
 
 log "Nmap args: $NMAP_ARGS"
 
-# Create output filename
-OUT_FILE="${TARGET}_scan.xml"
+# Create timestamped output filename
+TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+OUT_FILE="${TARGET}_scan_${TIMESTAMP}.xml"
 log "Output: $OUT_FILE"
 
 # Run nmap
@@ -93,12 +96,13 @@ fi
 
 log "Scan complete. Generating report..."
 
-# Generate report
-if [[ -f "./report_gen.sh" ]]; then
-    ./report_gen.sh -v "$OUT_FILE"
+# Use SCRIPT_DIR for relative path to report_gen.sh
+if [[ -f "$SCRIPT_DIR/report_gen.sh" ]]; then
+    "$SCRIPT_DIR/report_gen.sh" -v "$OUT_FILE"
 else
-    log "Warning: report_gen.sh not found"
+    warn "report_gen.sh not found at $SCRIPT_DIR/report_gen.sh"
+    warn "Skipping report generation"
 fi
 
-log "Pipeline complete!"
+log "Pipeline complete! Output: $OUT_FILE"
 exit 0
